@@ -26,8 +26,11 @@ import shutil
 import string
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -43,7 +46,7 @@ START = "2026-10-08"   # teaser 배포·포스터 QR 게시
 # 합쳐서 지운 코드 → 지금 코드 (2026-11-13 에타, 11-18 외부 DM)
 ALIASES = {"ES": "ET", "EY": "ET", "EE": "ET", "NM": "DM", "GM": "DM", "AM": "DM"}
 # 그래프에 표시할 날
-MARKS = [("2026-10-08", "QR 게시"), ("2026-10-30", "사이트 공개"), ("2026-11-13", "에타 첫 업로드")]
+MARKS = [("2026-10-30", "사이트 공개 · 인스타 업로드"), ("2026-11-03", "포스터 부착 시작"), ("2026-11-15", "주일미사 홍보")]
 BOOKING = {"booking-hero": "정보 블록", "booking-sticky": "오른쪽 위 고정 버튼", "booking-bottom": "맨 아래"}
 GROUP_NOTE = {"지인": "단원 지인", "신자": "성당 신자", "간접": "가톨릭·대학 연관",
               "무관계": "처음 보는 사람", "전체": "포스터를 본 모든 사람"}
@@ -102,6 +105,13 @@ def typo_code(path: str, param: str, known) -> str | None:
     return code_of(m.group(2), known)
 
 
+def kst_day_range(day: str):
+    """한국 날짜 하루 → API 시각 범위 (GoatCounter 사이트 시간대가 KST라 일별 숫자와 맞는다)."""
+    d = datetime.date.fromisoformat(day)
+    prev = (d - datetime.timedelta(days=1)).isoformat()
+    return f"{prev}T15:00:00Z", f"{day}T14:59:59Z"
+
+
 def collect(cfg):
     tok, base = token(), api_base(cfg)
     param = cfg["param"]
@@ -110,6 +120,11 @@ def collect(cfg):
     today = datetime.datetime.now(KST).date()
     end = today.isoformat()
     start7 = (today - datetime.timedelta(days=6)).isoformat()
+    days, d = [], datetime.date.fromisoformat(START)
+    while d <= today:
+        days.append(d.isoformat())
+        d += datetime.timedelta(days=1)
+    idx = {k: i for i, k in enumerate(days)}
 
     hits = get(base, tok, "/stats/hits", start=START, limit=200)["hits"]
     pages = [h for h in hits if not h["event"]]
@@ -121,63 +136,79 @@ def collect(cfg):
     def last7(h):
         return sum(v for k, v in daily(h).items() if k >= start7)
 
-    totals = {c: [0, 0] for c in chans}       # code → [전체, 최근 7일]
-    direct, sites, unknown, fixes = [0, 0], {}, {}, []
+    # 출처별 날짜 줄: 코드 → [날짜별 방문]. 합계·최근 7일은 이 줄을 더해서 낸다
+    rows = {c: [0] * len(days) for c in chans}
+    direct, sites, unknown, fixes = [0] * len(days), {}, {}, {}
     normal_ids = []
     for h in pages:
         c = typo_code(h["path"], param, known)
         if c:
-            totals[c][0] += h["count"]
-            totals[c][1] += last7(h)
-            fixes.append({"raw": h["path"], "to": c, "count": h["count"]})
+            for k, v in daily(h).items():
+                if k in idx:
+                    rows[c][idx[k]] += v
+            fixes[(h["path"], c)] = fixes.get((h["path"], c), 0) + h["count"]
         else:
             normal_ids.append(str(h["path_id"]))
 
-    for i, since in ((0, START), (1, start7)):
-        if not normal_ids:
-            break
-        refs = get(base, tok, "/stats/toprefs", start=since, limit=200,
-                   include_paths=",".join(normal_ids))["stats"]
-        for r in refs:
-            name, n = r.get("name") or "", r["count"]
-            if r.get("ref_scheme") == "c":
-                c = code_of(name, known)
-                if c:
-                    totals[c][i] += n
-                    up = name.upper()
-                    if i == 0 and up != c and not (up in ALIASES and ALIASES[up] == c):
-                        fixes.append({"raw": f"?{param}={name}", "to": c, "count": n})
-                else:
-                    unknown.setdefault(name, [0, 0])[i] += n
-            elif not name:
-                direct[i] += n
-            else:
-                sites.setdefault(name, [0, 0])[i] += n
+    def refs_of(day):
+        s, e = kst_day_range(day)
+        for attempt in range(4):
+            try:
+                return day, get(base, tok, "/stats/toprefs", start=s, end=e, limit=200,
+                                include_paths=",".join(normal_ids))["stats"]
+            except urllib.error.HTTPError as err:
+                if err.code != 429 or attempt == 3:
+                    raise
+                time.sleep(2 * (attempt + 1))
 
-    days, d = [], datetime.date.fromisoformat(START)
-    while d <= today:
-        days.append(d.isoformat())
-        d += datetime.timedelta(days=1)
+    if normal_ids:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for day, refs in pool.map(refs_of, days):
+                i = idx[day]
+                for r in refs:
+                    name, n = r.get("name") or "", r["count"]
+                    if r.get("ref_scheme") == "c":
+                        c = code_of(name, known)
+                        if c:
+                            rows[c][i] += n
+                            up = name.upper()
+                            if up != c and ALIASES.get(up) != c:
+                                key = (f"?{param}={name}", c)
+                                fixes[key] = fixes.get(key, 0) + n
+                        else:
+                            unknown.setdefault(name, [0] * len(days))[i] += n
+                    elif not name:
+                        direct[i] += n
+                    else:
+                        sites.setdefault(name, [0] * len(days))[i] += n
+
+    def row(series):
+        return {"total": sum(series), "last7": sum(v for k, v in zip(days, series) if k >= start7), "daily": series}
+
+    def merge(d):
+        out = [0] * len(days)
+        for s in d.values():
+            out = [a + b for a, b in zip(out, s)]
+        return out
+
     page_daily = [daily(h) for h in pages]
     book_daily = [daily(events[p]) for p in BOOKING if p in events]
     series = [{"day": k,
                "visits": sum(x.get(k, 0) for x in page_daily),
                "clicks": sum(x.get(k, 0) for x in book_daily)} for k in days]
 
-    channels = [{"code": c, "name": ch["name"], "group": ch["group"],
-                 "total": totals[c][0], "last7": totals[c][1]} for c, ch in chans.items()]
+    channels = [{"code": c, "name": ch["name"], "group": ch["group"], **row(rows[c])} for c, ch in chans.items()]
     channels.sort(key=lambda x: (-x["total"], -x["last7"]))
     extra = []
     if any(direct):
-        extra.append({"label": "코드 없이 들어온 방문", "note": "주소 직접 입력, 북마크, 코드를 뗀 링크",
-                      "total": direct[0], "last7": direct[1]})
+        extra.append({"label": "코드 없이 들어온 방문", "note": "주소 직접 입력, 북마크, 코드를 뗀 링크", **row(direct)})
     if sites:
         extra.append({"label": "다른 사이트의 코드 없는 링크",
-                      "note": " · ".join(f"{k} {v[0]}" for k, v in sorted(sites.items(), key=lambda kv: -kv[1][0])),
-                      "total": sum(v[0] for v in sites.values()), "last7": sum(v[1] for v in sites.values())})
+                      "note": " · ".join(f"{k} {sum(v)}" for k, v in sorted(sites.items(), key=lambda kv: -sum(kv[1]))),
+                      **row(merge(sites))})
     if unknown:
-        extra.append({"label": "알 수 없는 코드", "note": " · ".join(f"{k} {v[0]}" for k, v in unknown.items()),
-                      "total": sum(v[0] for v in unknown.values()), "last7": sum(v[1] for v in unknown.values())})
+        extra.append({"label": "알 수 없는 코드", "note": " · ".join(f"{k} {sum(v)}" for k, v in unknown.items()),
+                      **row(merge(unknown))})
 
     groups = []
     for g in cfg["groups"]:
@@ -198,7 +229,7 @@ def collect(cfg):
         "clicks": sum(b["total"] for b in booking), "clicks7": sum(b["last7"] for b in booking),
         "submits": sum(sub_real.values()), "submits7": sum(v for k, v in sub_real.items() if k >= start7),
         "channels": channels, "extra": extra, "groups": groups, "booking": booking,
-        "fixes": fixes, "daily": series,
+        "fixes": [{"raw": r, "to": c, "count": n} for (r, c), n in fixes.items()], "daily": series,
         "marks": [{"day": k, "label": v} for k, v in MARKS if START <= k <= end],
     }
 

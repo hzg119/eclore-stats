@@ -75,8 +75,18 @@ h2 { font-size: 22px; font-weight: 400; line-height: 1.4; }
 .row .val small { font-size: 12px; color: var(--ink-soft); }
 .row.zero .name b, .row.zero .val b { color: var(--ink-faint); }
 .row.extra .name b { color: var(--ink-soft); }
+.bars .row { grid-template-columns: minmax(0, 15em) minmax(0, 1fr) 4.2em 14px; }
+.row.open-able { cursor: pointer; border-radius: 4px; }
+.row.open-able:hover { background: var(--panel); }
+.row.open-able:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+.chev { width: 8px; height: 8px; border-right: 1.5px solid var(--ink-faint); border-bottom: 1.5px solid var(--ink-faint); transform: rotate(45deg); justify-self: center; margin-top: -4px; transition: transform .15s; }
+.row[aria-expanded="true"] .chev { transform: rotate(-135deg); margin-top: 4px; }
+.detail { position: relative; padding: 10px 0 14px; border-bottom: 1px solid var(--rule); }
+.detail svg { display: block; width: 100%; height: auto; overflow: visible; }
+.detail text { font-family: var(--font); fill: var(--ink-soft); font-size: 11px; }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
 @media (max-width: 520px) {
-  .row { grid-template-columns: minmax(0, 1fr) 4.2em; }
+  .bars .row { grid-template-columns: minmax(0, 1fr) 4.2em 14px; }
   .row .track { grid-column: 1 / -1; grid-row: 2; }
 }
 
@@ -94,13 +104,13 @@ h2 { font-size: 22px; font-weight: 400; line-height: 1.4; }
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart text { font-family: var(--font); fill: var(--ink-soft); font-size: 11px; }
-.chart .grid { stroke: var(--rule); stroke-width: 1; }
-.chart .area { fill: var(--rose-pale); }
-.chart .line { fill: none; stroke: var(--rose); stroke-width: 2; stroke-linejoin: round; }
-.chart .mark { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 3; }
-.chart .mark-label { fill: var(--ink-soft); font-size: 11px; }
-.chart .cross { stroke: var(--ink); stroke-width: 1; }
-.chart .dot { fill: var(--rose); stroke: var(--bg); stroke-width: 2; }
+.chart .grid, .detail .grid { stroke: var(--rule); stroke-width: 1; }
+.chart .area, .detail .area { fill: var(--rose-pale); }
+.chart .line, .detail .line { fill: none; stroke: var(--rose); stroke-width: 2; stroke-linejoin: round; }
+.chart .mark, .detail .mark { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .mark-label, .detail .mark-label { fill: var(--ink-soft); font-size: 11px; }
+.chart .cross, .detail .cross { stroke: var(--ink); stroke-width: 1; }
+.chart .dot, .detail .dot { fill: var(--rose); stroke: var(--bg); stroke-width: 2; }
 .tip { position: absolute; pointer-events: none; background: var(--bg); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; font-size: 13px; line-height: 1.5; white-space: nowrap; transform: translate(-50%, -100%); }
 .tip b { font-weight: 400; color: var(--rose); }
 
@@ -134,7 +144,7 @@ th { color: var(--ink-soft); }
 
   <section>
     <h2>어디서 들어왔나</h2>
-    <p class="lede">홍보 링크와 QR마다 붙은 코드로 센 방문입니다. 막대 전체가 지금까지, 진한 부분이 최근 7일입니다.</p>
+    <p class="lede">홍보 링크와 QR마다 붙은 코드로 센 방문입니다. 막대 전체가 지금까지, 진한 부분이 최근 7일입니다. 항목을 누르면 날짜별 방문이 펼쳐집니다.</p>
     <div class="legend"><span><i style="background:var(--rose)"></i>최근 7일</span><span><i style="background:var(--rose-pale)"></i>지금까지</span></div>
     <div class="bars" id="channels"></div>
   </section>
@@ -148,7 +158,7 @@ th { color: var(--ink-soft); }
   <section>
     <h2>날짜별 방문</h2>
     <p class="lede">하루 방문자 수입니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
-    <div class="chart" id="chart"><div class="tip" id="tip" hidden></div></div>
+    <div class="chart" id="chart"></div>
     <details>
       <summary>날짜별 표로 보기</summary>
       <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th></tr></thead><tbody></tbody></table></div>
@@ -166,7 +176,6 @@ th { color: var(--ink-soft); }
     <ul class="notes" id="notes">
       <li><b>최소값입니다.</b> 광고 차단을 쓰는 방문자는 세지 않습니다. 같은 사람이 같은 날 여러 번 들어와도 1로 셉니다.</li>
       <li><b>채널별 예매 수는 여기서 알 수 없습니다.</b> 예매 버튼 클릭은 버튼별 합계만 있습니다. 실제 예매가 어디서 왔는지는 예매 폼의 '유입 경로' 답과 같이 봅니다.</li>
-      <li><b>포스터 QR(PO)</b>은 실물 포스터뿐 아니라 포스터 이미지를 인스타·에타에 올린 것을 찍은 경우도 포함합니다.</li>
     </ul>
   </section>
 </main>
@@ -188,6 +197,80 @@ th { color: var(--ink-soft); }
   $('s-submits').textContent = fmt(D.submits);
   $('s-submits7').textContent = `최근 7일 ${fmt(D.submits7)}`;
 
+  const days = D.daily.map((s) => s.day);
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // 날짜별 그래프 하나 (전체 방문, 채널별 펼침 모두). values = 날짜별 숫자, tipText(i) = 툴팁 뒤쪽 문구
+  function drawChart(host, values, opts = {}) {
+    const W = Math.max(300, Math.round(host.clientWidth)), small = !!opts.small;
+    const marks = D.marks.filter((m) => days.includes(m.day));
+    const L = 34, R = 12, B = 26, T = 12 + marks.length * 14;
+    const H = (small ? (W < 500 ? 150 : 170) : (W < 500 ? 210 : 250)) + marks.length * 14;
+    const ymaxRaw = Math.max(1, ...values);
+    const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => ymaxRaw / s <= (small ? 3 : 5)) || 1000;
+    const ymax = Math.ceil(ymaxRaw / step) * step;
+    const n = values.length;
+    const x = (i) => L + (n > 1 ? i / (n - 1) : 0) * (W - L - R);
+    const y = (v) => T + (1 - v / ymax) * (H - T - B);
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `${opts.label || '날짜별 방문'} 그래프, 가장 많은 날 ${fmt(ymaxRaw)}명`);
+    const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
+    for (let v = 0; v <= ymax; v += step) {
+      add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
+      add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v));
+    }
+    // 날짜 눈금: 첫날, 매달 1일, 월요일 (가까운 눈금과 겹치지 않게)
+    let last = -1;
+    days.forEach((day, i) => {
+      const d = new Date(day + 'T00:00:00');
+      const want = i === 0 || d.getDate() === 1 || d.getDay() === 1;
+      if (!want || (last >= 0 && x(i) - x(last) < 46) || x(i) > W - R - 24) return;
+      add('text', { x: x(i), y: H - 7, 'text-anchor': i === 0 ? 'start' : 'middle' }, md(day));
+      last = i;
+    });
+    // 홍보 일정: 점선 + 이름 (한 줄에 하나씩 쌓아 겹치지 않게)
+    marks.forEach((m, k) => {
+      const mx = x(days.indexOf(m.day));
+      const ly = 10 + k * 14;
+      add('line', { class: 'mark', x1: mx, x2: mx, y1: ly + 3, y2: H - B });
+      const anchor = mx + m.label.length * 11 + 6 > W - R ? 'end' : 'start';   // 글자가 오른쪽 끝을 넘을 때만 왼쪽으로
+      add('text', { class: 'mark-label', x: mx + (anchor === 'start' ? 4 : -4), y: ly, 'text-anchor': anchor }, m.label);
+    });
+    const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+    add('path', { class: 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(n - 1)},${y(0)} Z` });
+    add('path', { class: 'line', d: `M${pts.join(' L')}` });
+    const peak = values.reduce((a, v, i) => (v > values[a] ? i : a), 0);
+    if (values[peak] > 0) {
+      add('circle', { class: 'dot', cx: x(peak), cy: y(values[peak]), r: 4 });
+      const pr = x(peak) > W - 90;
+      add('text', { x: x(peak) + (pr ? -8 : 8), y: y(values[peak]) + 4, 'text-anchor': pr ? 'end' : 'start' }, `${md(days[peak])} ${fmt(values[peak])}`);
+    }
+    const cross = add('line', { class: 'cross', y1: T, y2: H - B, visibility: 'hidden' });
+    const hot = add('circle', { class: 'dot', r: 4, visibility: 'hidden' });
+    const hit = add('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' });
+    const tip = el('div', 'tip'); tip.hidden = true;
+    host.append(svg, tip);
+    function show(ev) {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width * W;
+      const i = Math.max(0, Math.min(n - 1, Math.round((px - L) / (W - L - R) * (n - 1))));
+      cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+      hot.setAttribute('cx', x(i)); hot.setAttribute('cy', y(values[i])); hot.setAttribute('visibility', 'visible');
+      tip.hidden = false;
+      tip.textContent = '';
+      tip.append(`${md(days[i])} · 방문 `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
+      const tw = tip.offsetWidth;
+      tip.style.left = Math.max(tw / 2, Math.min(r.width - tw / 2, x(i) / W * r.width)) + 'px';
+      tip.style.top = (y(values[i]) / H * r.height - 10) + 'px';
+    }
+    function hide() { cross.setAttribute('visibility', 'hidden'); hot.setAttribute('visibility', 'hidden'); tip.hidden = true; }
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('pointerdown', show);
+    hit.addEventListener('pointerleave', hide);
+  }
+
   function barRow(o, max, opts = {}) {
     const row = el('div', 'row' + (o.total ? '' : ' zero') + (opts.extra ? ' extra' : ''));
     const name = el('div', 'name');
@@ -204,13 +287,31 @@ th { color: var(--ink-soft); }
     const val = el('div', 'val num');
     val.append(el('b', null, fmt(o.total)), el('small', null, `7일 ${fmt(o.last7)}`));
     row.append(name, track, val);
-    return row;
+    if (!o.daily || !o.total) return [row];
+    // 누르면 이 항목의 날짜별 방문이 아래에 펼쳐진다
+    const chev = el('span', 'chev'); chev.setAttribute('aria-hidden', 'true');
+    row.append(chev);
+    row.classList.add('open-able');
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-expanded', 'false');
+    const detail = el('div', 'detail'); detail.hidden = true;
+    let drawn = false;
+    const toggle = () => {
+      const open = detail.hidden;
+      detail.hidden = !open;
+      row.setAttribute('aria-expanded', String(open));
+      if (open && !drawn) { drawChart(detail, o.daily, { small: true, label: `${o.name || o.label} 날짜별 방문` }); drawn = true; }
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    return [row, detail];
   }
 
   const max = Math.max(1, ...D.channels.map((c) => c.total), ...D.extra.map((e) => e.total));
   const chans = $('channels');
-  D.channels.forEach((c) => chans.append(barRow({ ...c, small: c.group }, max)));
-  D.extra.forEach((e) => chans.append(barRow({ ...e, small: e.note }, max, { extra: true })));
+  D.channels.forEach((c) => chans.append(...barRow({ ...c, small: c.group }, max)));
+  D.extra.forEach((e) => chans.append(...barRow({ ...e, small: e.note }, max, { extra: true })));
 
   D.groups.forEach((g) => {
     const box = el('div', 'group');
@@ -219,80 +320,10 @@ th { color: var(--ink-soft); }
   });
 
   const bmax = Math.max(1, ...D.booking.map((b) => b.total));
-  D.booking.forEach((b) => $('booking').append(barRow(b, bmax)));
+  D.booking.forEach((b) => $('booking').append(...barRow(b, bmax)));
 
-  if (D.fixes.length) {
-    const li = el('li');
-    li.append(el('b', null, '오타·변형 링크는 원래 코드로 합쳤습니다. '),
-      D.fixes.map((f) => `${f.raw} → ${f.to} (${fmt(f.count)})`).join(', ') + '. 대소문자 차이(ig·IG)도 합쳤습니다.');
-    $('notes').append(li);
-  }
-
-  // 날짜별 그래프
-  const S = D.daily, W = Math.max(320, Math.round($('chart').clientWidth)), H = W < 500 ? 200 : 240, L = 34, R = 12, T = 26, B = 28;
-  const ymaxRaw = Math.max(1, ...S.map((s) => s.visits));
-  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => ymaxRaw / s <= 5) || 1000;
-  const ymax = Math.ceil(ymaxRaw / step) * step;
-  const x = (i) => L + (S.length > 1 ? i / (S.length - 1) : 0) * (W - L - R);
-  const y = (v) => T + (1 - v / ymax) * (H - T - B);
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', `날짜별 방문 그래프, 가장 많은 날 ${fmt(ymaxRaw)}명`);
-  const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
-  for (let v = 0; v <= ymax; v += step) {
-    add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
-    add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v));
-  }
-  // 날짜 눈금: 첫날, 매달 1일, 월요일 (가까운 눈금과 겹치지 않게)
-  let last = -1;
-  S.forEach((s, i) => {
-    const d = new Date(s.day + 'T00:00:00');
-    const want = i === 0 || d.getDate() === 1 || d.getDay() === 1;
-    if (!want || (last >= 0 && x(i) - x(last) < 46) || x(i) > W - R - 24) return;
-    add('text', { x: x(i), y: H - 8, 'text-anchor': i === 0 ? 'start' : 'middle' }, md(s.day));
-    last = i;
-  });
-  const idx = Object.fromEntries(S.map((s, i) => [s.day, i]));
-  D.marks.forEach((m, k) => {
-    if (!(m.day in idx)) return;
-    const mx = x(idx[m.day]);
-    add('line', { class: 'mark', x1: mx, x2: mx, y1: T - 4, y2: H - B });
-    const anchor = mx > W - 90 ? 'end' : 'start';
-    add('text', { class: 'mark-label', x: mx + (anchor === 'start' ? 4 : -4), y: T - 10 + (k % 2) * 0, 'text-anchor': anchor }, m.label);
-  });
-  const pts = S.map((s, i) => `${x(i).toFixed(1)},${y(s.visits).toFixed(1)}`);
-  add('path', { class: 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(S.length - 1)},${y(0)} Z` });
-  add('path', { class: 'line', d: `M${pts.join(' L')}` });
-  const peak = S.reduce((a, s, i) => (s.visits > S[a].visits ? i : a), 0);
-  add('circle', { class: 'dot', cx: x(peak), cy: y(S[peak].visits), r: 4 });
-  const pr = x(peak) > W - 90;
-  add('text', { x: x(peak) + (pr ? -8 : 8), y: y(S[peak].visits) + 4, 'text-anchor': pr ? 'end' : 'start' }, `${md(S[peak].day)} ${fmt(S[peak].visits)}`);
-  const cross = add('line', { class: 'cross', y1: T, y2: H - B, visibility: 'hidden' });
-  const hot = add('circle', { class: 'dot', r: 4, visibility: 'hidden' });
-  const hit = add('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' });
-  $('chart').prepend(svg);
-  const tip = $('tip');
-  function show(ev) {
-    const r = svg.getBoundingClientRect();
-    const px = (ev.clientX - r.left) / r.width * W;
-    const i = Math.max(0, Math.min(S.length - 1, Math.round((px - L) / (W - L - R) * (S.length - 1))));
-    const s = S[i];
-    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
-    hot.setAttribute('cx', x(i)); hot.setAttribute('cy', y(s.visits)); hot.setAttribute('visibility', 'visible');
-    tip.hidden = false;
-    tip.innerHTML = '';
-    tip.append(`${md(s.day)} · 방문 `, el('b', null, fmt(s.visits)), ` · 예매 클릭 ${fmt(s.clicks)}`);
-    const left = x(i) / W * r.width;
-    const tw = tip.offsetWidth;
-    tip.style.left = Math.max(tw / 2, Math.min(r.width - tw / 2, left)) + 'px';
-    tip.style.top = (y(s.visits) / H * r.height - 10) + 'px';
-  }
-  function hide() { cross.setAttribute('visibility', 'hidden'); hot.setAttribute('visibility', 'hidden'); tip.hidden = true; }
-  hit.addEventListener('pointermove', show);
-  hit.addEventListener('pointerdown', show);
-  hit.addEventListener('pointerleave', hide);
+  const S = D.daily;
+  drawChart($('chart'), S.map((s) => s.visits), { tipText: (i) => ` · 예매 클릭 ${fmt(S[i].clicks)}` });
 
   const tb = document.querySelector('#daily-table tbody');
   S.slice().reverse().forEach((s) => {
