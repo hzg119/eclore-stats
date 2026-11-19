@@ -59,7 +59,8 @@ def load_cfg() -> dict:
     tr = config["tracking"]
     return {"goatcounter": tr["goatcounter"], "param": tr["param"],
             "channels": {c: {"name": ch["name"], "group": ch["group"]} for c, ch in reg.channels(config).items()},
-            "groups": list(reg.GROUPS), "stats": config.get("stats") or {}}
+            "groups": list(reg.GROUPS), "stats": config.get("stats") or {},
+            "test_submits": {str(k): int(v) for k, v in ((config.get("stats") or {}).get("test_submits") or {}).items()}}
 
 
 def token() -> str:
@@ -185,14 +186,17 @@ def collect(cfg):
 
     booking = [{"label": label, "total": events[p]["count"] if p in events else 0,
                 "last7": last7(events[p]) if p in events else 0} for p, label in BOOKING.items()]
-    sub = events.get("event-submit")
+    # 이벤트 응모: 테스트(더미)로 찍힌 날의 건수를 뺀다 (GoatCounter는 한 건씩 지울 수 없다)
+    tests = cfg.get("test_submits") or {}
+    sub_daily = daily(events["event-submit"]) if "event-submit" in events else {}
+    sub_real = {k: max(0, v - tests.get(k, 0)) for k, v in sub_daily.items()}
     visits = sum(s["visits"] for s in series)
     return {
         "generated": datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
         "start": START, "end": end, "start7": start7,
         "visits": visits, "visits7": sum(s["visits"] for s in series if s["day"] >= start7),
         "clicks": sum(b["total"] for b in booking), "clicks7": sum(b["last7"] for b in booking),
-        "submits": sub["count"] if sub else 0, "submits7": last7(sub) if sub else 0,
+        "submits": sum(sub_real.values()), "submits7": sum(v for k, v in sub_real.items() if k >= start7),
         "channels": channels, "extra": extra, "groups": groups, "booking": booking,
         "fixes": fixes, "daily": series,
         "marks": [{"day": k, "label": v} for k, v in MARKS if START <= k <= end],
@@ -262,7 +266,7 @@ def sync(cfg):
         subprocess.run(["gh", "repo", "clone", repo, str(clone)], check=True)
     git = lambda *a: subprocess.run(["git", *a], cwd=clone, check=True, text=True, capture_output=True)  # noqa: E731
     git("pull", "--ff-only")
-    public = {k: cfg[k] for k in ("goatcounter", "param", "channels", "groups")}
+    public = {k: cfg[k] for k in ("goatcounter", "param", "channels", "groups", "test_submits")}
     (clone / "stats_config.json").write_text(json.dumps(public, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     shutil.copy2(HERE / "stats.py", clone / "stats.py")
     shutil.copy2(TEMPLATE, clone / "stats_page.html")
