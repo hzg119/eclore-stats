@@ -1,0 +1,49 @@
+{
+ "goatcounter": "https://sogangfiat.goatcounter.com/count",
+ "param": "ref",
+ "channels": {
+  "PO": {
+   "name": "포스터",
+   "group": "전체"
+  },
+  "MC": {
+   "name": "주일미사 화면 QR",
+   "group": "신자"
+  },
+  "FL": {
+   "name": "주일미사 배부 전단",
+   "group": "신자"
+  },
+  "IG": {
+   "name": "인스타 프로필 링크",
+   "group": "지인"
+  },
+  "MS": {
+   "name": "단원 개인 스토리 링크 스티커",
+   "group": "지인"
+  },
+  "KT": {
+   "name": "카톡 초대장(단원 배포)",
+   "group": "지인"
+  },
+  "ET": {
+   "name": "에브리타임",
+   "group": "무관계"
+  },
+  "DM": {
+   "name": "다른 가톨릭 학생회·성가대 DM",
+   "group": "간접"
+  },
+  "GN": {
+   "name": "굿뉴스 게시판",
+   "group": "간접"
+  }
+ },
+ "groups": [
+  "지인",
+  "신자",
+  "간접",
+  "무관계",
+  "전체"
+ ]
+}

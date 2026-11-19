@@ -1,0 +1,45 @@
+# 매시간 GoatCounter에서 숫자를 받아 통계 페이지를 다시 만들어 Pages에 올린다.
+# 원본: project_eclore_fiat tools/stats_site/stats.yml (여기서 직접 고치지 말고 원본에서 고친 뒤 tools/stats.py --sync)
+name: stats
+
+on:
+  schedule:
+    - cron: "7 * * * *"      # 매시 7분 (UTC 기준, GitHub 사정으로 몇 분 늦을 수 있음)
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 통계 페이지 만들기
+        run: python stats.py --out _site
+        env:
+          GOATCOUNTER_TOKEN: ${{ secrets.GOATCOUNTER_TOKEN }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
