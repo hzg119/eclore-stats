@@ -8,6 +8,8 @@
 
 토큰: 환경변수 GOATCOUNTER_TOKEN 또는 ~/.config/eclore/goatcounter.token
 (GoatCounter → 계정 메뉴 → API, 권한은 "Read statistics"만). 토큰은 레포에 두지 않는다 (공개 레포는 Actions 비밀값).
+예매 인원: 환경변수 BOOKING_STATS_URL 또는 ~/.config/eclore/booking_stats.url (읽기 전용 Apps Script 웹앱,
+tools/apps-script/booking-stats.gs — 집계 숫자만 준다). 없거나 실패하면 예매 섹션만 빠진다.
 
 채널 이름·분류는 config.yaml 등록부에서 가져온다. 코드는 대소문자를 합치고,
 링크 끝에 붙은 군더더기(줄바꿈·이모지)는 떼고, 오타 주소(/?ret=MS 등)는 그 코드로 합친다.
@@ -39,6 +41,7 @@ ROOT = HERE.parent if IN_REPO else HERE
 OUT = ROOT / ".cache" / "stats"
 TEMPLATE = HERE / "stats_page.html"
 TOKEN_FILE = Path.home() / ".config" / "eclore" / "goatcounter.token"
+BOOKING_URL_FILE = Path.home() / ".config" / "eclore" / "booking_stats.url"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 WEIGHTS = ((300, "Light"), (400, "Regular"), (600, "SemiBold"))
 
@@ -231,7 +234,42 @@ def collect(cfg):
         "channels": channels, "extra": extra, "groups": groups, "booking": booking,
         "fixes": [{"raw": r, "to": c, "count": n} for (r, c), n in fixes.items()], "daily": series,
         "marks": [{"day": k, "label": v} for k, v in MARKS if START <= k <= end],
+        "form": booking_form(days, start7),
     }
+
+
+def booking_form(days, start7):
+    """예매 폼 응답 집계 (Apps Script 웹앱). 실패하면 None — 페이지는 예매 섹션 없이 만든다."""
+    url = os.environ.get("BOOKING_STATS_URL") or (BOOKING_URL_FILE.read_text().strip() if BOOKING_URL_FILE.exists() else "")
+    if not url:
+        return None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                b = json.load(r)
+            if b.get("ok"):
+                break
+            print(f"예매 집계 오류: {b.get('error')}", file=sys.stderr)
+            return None
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            print(f"예매 집계 실패 ({attempt + 1}/3): {type(e).__name__}", file=sys.stderr)   # 주소(비밀값)는 찍지 않는다
+            time.sleep(5)
+    else:
+        return None
+    per_day = [b["daily"].get(d, 0) for d in days]
+    cum, n = [], 0
+    for v in per_day:
+        n += v
+        cum.append(n)
+    sources = []
+    for name, by_day in b["source"].items():
+        sources.append({"label": name, "total": sum(by_day.values()),
+                        "last7": sum(v for k, v in by_day.items() if k >= start7)})
+    sources.sort(key=lambda x: (x["label"] == "기타", -x["total"]))
+    return {"people": b["people"], "people_dedup": b["people_dedup"],
+            "responses": b["responses"], "responses_dedup": b["responses_dedup"],
+            "last7": sum(v for k, v in b["daily"].items() if k >= start7),
+            "cumulative": cum, "sources": sources, "updated": b.get("updated"), "last_day": b.get("last_day")}
 
 
 def subset_woff2(name: str, text: str) -> bytes:
@@ -274,7 +312,9 @@ def render(data, standalone=False) -> str:
 
 
 def summary(data) -> str:
+    f = data.get("form")
     lines = [f"Éclore 홍보 집계 ({data['start']} ~ {data['end']}, {data['generated']} 기준)",
+             f"예매 인원 {f['people']} / 중복 의심 제외 {f['people_dedup']} (응답 {f['responses']}건)" if f else "예매 인원: 연동 안 됨",
              f"방문 {data['visits']} (최근 7일 {data['visits7']}) · 사전예매하기 클릭 {data['clicks']}"
              f" · 이벤트 응모 {data['submits']}", ""]
     for c in data["channels"]:
@@ -307,7 +347,8 @@ def sync(cfg):
     shutil.copy2(site / "README.md", clone / "README.md")
     # 글꼴: 페이지에 나올 수 있는 글자 (템플릿, 이 스크립트의 문구, 채널표, ASCII)
     chars = (TEMPLATE.read_text(encoding="utf-8") + (HERE / "stats.py").read_text(encoding="utf-8")
-             + json.dumps(public, ensure_ascii=False) + string.printable + "·%+−–—~→")
+             + json.dumps(public, ensure_ascii=False) + string.printable + "·%+−–—~→"
+             + (ROOT / "promo" / "form-options.txt").read_text(encoding="utf-8") + "기타")   # 예매 폼 유입 경로 답
     (clone / "fonts").mkdir(exist_ok=True)
     for _, name in WEIGHTS:
         (clone / "fonts" / f"MaruBuri-{name}.woff2").write_bytes(subset_woff2(name, chars))

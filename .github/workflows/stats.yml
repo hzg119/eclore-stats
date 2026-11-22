@@ -30,6 +30,7 @@ jobs:
         run: python stats.py --out _site
         env:
           GOATCOUNTER_TOKEN: ${{ secrets.GOATCOUNTER_TOKEN }}
+          BOOKING_STATS_URL: ${{ secrets.BOOKING_STATS_URL }}   # 예매 폼 집계 웹앱 (없으면 예매 섹션만 빠짐)
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

@@ -46,16 +46,18 @@ h1 { font-size: clamp(30px, 6vw, 40px); font-weight: 400; line-height: 1.25; tex
 h1 .accent { color: var(--rose); }
 .meta { color: var(--ink-soft); font-size: 14px; }
 
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .stat { background: var(--panel); border-radius: 6px; padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
 .stat .label { font-size: 14px; color: var(--ink-soft); }
 .stat .value { font-size: clamp(30px, 7vw, 42px); line-height: 1.15; color: var(--ink); }
 .stat .value.rose { color: var(--rose); }
+.stat .value .slash { color: var(--ink-faint); margin-inline: .12em; }
 .stat .sub { font-size: 13px; color: var(--ink-soft); }
 @media (max-width: 520px) { .stats { grid-template-columns: 1fr; } .stat { grid-template-columns: 1fr auto; align-items: baseline; } .stat .sub { grid-column: 1 / -1; } }
 
 section { display: grid; gap: 18px; min-width: 0; }
 h2 { font-size: 22px; font-weight: 400; line-height: 1.4; }
+.sub-h { font-size: 17px; font-weight: 400; margin-top: 18px; }
 .lede { color: var(--ink-soft); font-size: 15px; max-width: 38em; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-soft); }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
@@ -137,10 +139,20 @@ th { color: var(--ink-soft); }
   </header>
 
   <div class="stats">
-    <div class="stat"><span class="label">사이트 방문</span><span class="value rose num" id="s-visits"></span><span class="sub num" id="s-visits7"></span></div>
+    <div class="stat" id="t-form" hidden><span class="label">예매 인원 · 전체 / 중복 의심 제외</span><span class="value rose num" id="s-form"></span><span class="sub num" id="s-form7"></span></div>
+    <div class="stat"><span class="label">사이트 방문</span><span class="value num" id="s-visits"></span><span class="sub num" id="s-visits7"></span></div>
     <div class="stat"><span class="label">사전예매하기 클릭</span><span class="value num" id="s-clicks"></span><span class="sub num" id="s-clicks7"></span></div>
     <div class="stat"><span class="label">티켓 이벤트 응모</span><span class="value num" id="s-submits"></span><span class="sub num" id="s-submits7"></span></div>
   </div>
+
+  <section id="form-section" hidden>
+    <h2>예매 인원</h2>
+    <p class="lede">예매 폼 응답의 인원수를 날짜별로 쌓은 누적입니다 (중복 의심 제외). 입금 확인 숫자는 아닙니다.</p>
+    <div class="chart" id="form-chart"></div>
+    <h3 class="sub-h">어떻게 알게 되셨나요</h3>
+    <p class="lede">예매 폼에서 고른 답별 인원입니다 (중복 의심 제외). 광고 차단과 상관없이 모든 예매가 들어갑니다.</p>
+    <div class="bars" id="form-sources"></div>
+  </section>
 
   <section>
     <h2>어디서 들어왔나</h2>
@@ -175,7 +187,7 @@ th { color: var(--ink-soft); }
     <h2>읽을 때 알아 둘 것</h2>
     <ul class="notes" id="notes">
       <li><b>최소값입니다.</b> 광고 차단을 쓰는 방문자는 세지 않습니다. 같은 사람이 같은 날 여러 번 들어와도 1로 셉니다.</li>
-      <li><b>채널별 예매 수는 여기서 알 수 없습니다.</b> 예매 버튼 클릭은 버튼별 합계만 있습니다. 실제 예매가 어디서 왔는지는 예매 폼의 '유입 경로' 답과 같이 봅니다.</li>
+      <li><b>예매가 어디서 왔는지는 예매 폼 답으로 봅니다.</b> 링크 방문과 예매 버튼 클릭은 채널별 예매 수를 알려 주지 않습니다. 위 '어떻게 알게 되셨나요'가 실제 예매 기준입니다.</li>
     </ul>
   </section>
 </main>
@@ -198,6 +210,7 @@ th { color: var(--ink-soft); }
   $('s-submits7').textContent = `최근 7일 ${fmt(D.submits7)}`;
 
   const days = D.daily.map((s) => s.day);
+  const F = D.form;
   const NS = 'http://www.w3.org/2000/svg';
 
   // 날짜별 그래프 하나 (전체 방문, 채널별 펼침 모두). values = 날짜별 숫자, tipText(i) = 툴팁 뒤쪽 문구
@@ -215,7 +228,7 @@ th { color: var(--ink-soft); }
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', `${opts.label || '날짜별 방문'} 그래프, 가장 많은 날 ${fmt(ymaxRaw)}명`);
+    svg.setAttribute('aria-label', `${opts.label || '날짜별 방문'} 그래프, 가장 큰 값 ${fmt(ymaxRaw)}명`);
     const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
     for (let v = 0; v <= ymax; v += step) {
       add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
@@ -260,7 +273,7 @@ th { color: var(--ink-soft); }
       hot.setAttribute('cx', x(i)); hot.setAttribute('cy', y(values[i])); hot.setAttribute('visibility', 'visible');
       tip.hidden = false;
       tip.textContent = '';
-      tip.append(`${md(days[i])} · 방문 `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
+      tip.append(`${md(days[i])} · ${opts.unit || '방문'} `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
       const tw = tip.offsetWidth;
       tip.style.left = Math.max(tw / 2, Math.min(r.width - tw / 2, x(i) / W * r.width)) + 'px';
       tip.style.top = (y(values[i]) / H * r.height - 10) + 'px';
@@ -321,6 +334,17 @@ th { color: var(--ink-soft); }
 
   const bmax = Math.max(1, ...D.booking.map((b) => b.total));
   D.booking.forEach((b) => $('booking').append(...barRow(b, bmax)));
+
+  if (F) {
+    $('t-form').hidden = false;
+    $('s-form').append(fmt(F.people), el('span', 'slash', '/'), fmt(F.people_dedup));
+    $('s-form7').textContent = `응답 ${fmt(F.responses)}건 · 최근 7일 +${fmt(F.last7)}명`;
+    $('form-section').hidden = false;
+    drawChart($('form-chart'), F.cumulative, { unit: '예매 누적', label: '예매 인원 누적',
+      tipText: (i) => { const d = F.cumulative[i] - (i ? F.cumulative[i - 1] : 0); return d ? ` (+${fmt(d)})` : ''; } });
+    const fmax = Math.max(1, ...F.sources.map((x) => x.total));
+    F.sources.forEach((x) => $('form-sources').append(...barRow(x, fmax)));
+  }
 
   const S = D.daily;
   drawChart($('chart'), S.map((s) => s.visits), { tipText: (i) => ` · 예매 클릭 ${fmt(S[i].clicks)}` });
