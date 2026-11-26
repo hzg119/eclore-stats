@@ -13,18 +13,22 @@
   --rose: #B72C50;
   --rose-pale: #E9BCC6;
   --rule: rgba(74, 45, 49, .14);
+  --click: #6E55A8;
+  --book: #2C8579;
   --font: 'MaruBuri', 'Nanum Myeongjo', 'AppleMyungjo', serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #1E1517; --panel: rgba(255, 255, 255, .04); --ink: #F2E6E3; --ink-soft: #C9B4B8;
     --ink-faint: #8F7A7F; --rose: #F0839C; --rose-pale: #5E2D3A; --rule: rgba(242, 230, 227, .14);
+    --click: #B39DE6; --book: #57C0B0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #1E1517; --panel: rgba(255, 255, 255, .04); --ink: #F2E6E3; --ink-soft: #C9B4B8;
   --ink-faint: #8F7A7F; --rose: #F0839C; --rose-pale: #5E2D3A; --rule: rgba(242, 230, 227, .14);
+  --click: #B39DE6; --book: #57C0B0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -113,6 +117,15 @@ h2 { font-size: 22px; font-weight: 400; line-height: 1.4; }
 .chart .mark-label, .detail .mark-label { fill: var(--ink-soft); font-size: 11px; }
 .chart .cross, .detail .cross { stroke: var(--ink); stroke-width: 1; }
 .chart .dot, .detail .dot { fill: var(--rose); stroke: var(--bg); stroke-width: 2; }
+/* 날짜별 그래프의 겹친 선: 방문(장미, 면) · 예매 클릭(보라) · 예매 인원(청록) */
+.chart .area.multi { opacity: .55; }
+.chart .line.s-click { stroke: var(--click); }
+.chart .line.s-book { stroke: var(--book); }
+.chart .dot.s-click { fill: var(--click); }
+.chart .dot.s-book { fill: var(--book); }
+.tip.multi b { color: var(--ink); }
+.tip .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 5px 0 10px; }
+.tip .sw:first-child { margin-left: 0; }
 .tip { position: absolute; pointer-events: none; background: var(--bg); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; font-size: 13px; line-height: 1.5; white-space: nowrap; transform: translate(-50%, -100%); }
 .tip b { font-weight: 400; color: var(--rose); }
 
@@ -168,12 +181,13 @@ th { color: var(--ink-soft); }
   </section>
 
   <section>
-    <h2>날짜별 방문</h2>
-    <p class="lede">하루 방문자 수입니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
+    <h2>날짜별 방문 · 예매 클릭 · 예매</h2>
+    <p class="lede">하루 사이트 방문, 사전예매하기 버튼 클릭, 실제 예매 인원(예매 폼, 중복 의심 제외)입니다. 사이트 공개(10/30) 직전부터 그렸고, 그 전 티저 기간은 표에 있습니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
+    <div class="legend" id="daily-legend"><span><i style="background:var(--rose)"></i>방문</span><span><i style="background:var(--click)"></i>사전예매하기 클릭</span><span id="lg-book" hidden><i style="background:var(--book)"></i>예매 인원</span></div>
     <div class="chart" id="chart"></div>
     <details>
       <summary>날짜별 표로 보기</summary>
-      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th><th id="th-book" hidden>예매 인원</th></tr></thead><tbody></tbody></table></div>
     </details>
   </section>
 
@@ -209,17 +223,23 @@ th { color: var(--ink-soft); }
   $('s-submits').textContent = fmt(D.submits);
   $('s-submits7').textContent = `최근 7일 ${fmt(D.submits7)}`;
 
-  const days = D.daily.map((s) => s.day);
+  const allDays = D.daily.map((s) => s.day);
   const F = D.form;
   const NS = 'http://www.w3.org/2000/svg';
 
   // 날짜별 그래프 하나 (전체 방문, 채널별 펼침 모두). values = 날짜별 숫자, tipText(i) = 툴팁 뒤쪽 문구
+  // opts.series = [{ name, cls, values }]: 같은 축에 선을 더 겹친다 (첫 번째 이름은 opts.unit). 툴팁에 모두 보인다
+  // opts.from = 이 날짜부터 그린다 (앞쪽 빈 기간을 잘라 그래프를 넓게)
   function drawChart(host, values, opts = {}) {
     const W = Math.max(300, Math.round(host.clientWidth)), small = !!opts.small;
+    const off = opts.from ? Math.max(0, allDays.indexOf(opts.from)) : 0;
+    const days = allDays.slice(off);
+    values = values.slice(off);
+    const extra = (opts.series || []).map((e) => ({ ...e, values: e.values.slice(off) }));
     const marks = D.marks.filter((m) => days.includes(m.day));
     const L = 34, R = 12, B = 26, T = 12 + marks.length * 14;
-    const H = (small ? (W < 500 ? 150 : 170) : (W < 500 ? 210 : 250)) + marks.length * 14;
-    const ymaxRaw = Math.max(1, ...values);
+    const H = (small ? (W < 500 ? 150 : 170) : opts.big ? (W < 500 ? 300 : 380) : (W < 500 ? 210 : 250)) + marks.length * 14;
+    const ymaxRaw = Math.max(1, ...values, ...extra.flatMap((e) => e.values));
     const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => ymaxRaw / s <= (small ? 3 : 5)) || 1000;
     const ymax = Math.ceil(ymaxRaw / step) * step;
     const n = values.length;
@@ -252,8 +272,9 @@ th { color: var(--ink-soft); }
       add('text', { class: 'mark-label', x: mx + (anchor === 'start' ? 4 : -4), y: ly, 'text-anchor': anchor }, m.label);
     });
     const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
-    add('path', { class: 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(n - 1)},${y(0)} Z` });
+    add('path', { class: extra.length ? 'area multi' : 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(n - 1)},${y(0)} Z` });
     add('path', { class: 'line', d: `M${pts.join(' L')}` });
+    extra.forEach((e) => add('path', { class: `line ${e.cls}`, d: `M${e.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' L')}` }));
     const peak = values.reduce((a, v, i) => (v > values[a] ? i : a), 0);
     if (values[peak] > 0) {
       add('circle', { class: 'dot', cx: x(peak), cy: y(values[peak]), r: 4 });
@@ -262,6 +283,7 @@ th { color: var(--ink-soft); }
     }
     const cross = add('line', { class: 'cross', y1: T, y2: H - B, visibility: 'hidden' });
     const hot = add('circle', { class: 'dot', r: 4, visibility: 'hidden' });
+    const hots = extra.map((e) => add('circle', { class: `dot ${e.cls}`, r: 4, visibility: 'hidden' }));
     const hit = add('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' });
     const tip = el('div', 'tip'); tip.hidden = true;
     host.append(svg, tip);
@@ -271,14 +293,24 @@ th { color: var(--ink-soft); }
       const i = Math.max(0, Math.min(n - 1, Math.round((px - L) / (W - L - R) * (n - 1))));
       cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
       hot.setAttribute('cx', x(i)); hot.setAttribute('cy', y(values[i])); hot.setAttribute('visibility', 'visible');
+      hots.forEach((h, k) => { h.setAttribute('cx', x(i)); h.setAttribute('cy', y(extra[k].values[i])); h.setAttribute('visibility', 'visible'); });
       tip.hidden = false;
       tip.textContent = '';
-      tip.append(`${md(days[i])} · ${opts.unit || '방문'} `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
+      tip.classList.toggle('multi', extra.length > 0);
+      if (extra.length) {
+        // 한 줄에 날짜, 다음 줄에 색 견본 + 이름 + 숫자
+        const line = el('div');
+        [{ name: opts.unit || '방문', color: 'var(--rose)', v: values[i] }, ...extra.map((e) => ({ name: e.name, color: e.color, v: e.values[i] }))]
+          .forEach((o) => { const sw = el('i', 'sw'); sw.style.background = o.color; line.append(sw, `${o.name} `, el('b', null, fmt(o.v))); });
+        tip.append(el('div', null, md(days[i])), line);
+      } else {
+        tip.append(`${md(days[i])} · ${opts.unit || '방문'} `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
+      }
       const tw = tip.offsetWidth;
       tip.style.left = Math.max(tw / 2, Math.min(r.width - tw / 2, x(i) / W * r.width)) + 'px';
       tip.style.top = (y(values[i]) / H * r.height - 10) + 'px';
     }
-    function hide() { cross.setAttribute('visibility', 'hidden'); hot.setAttribute('visibility', 'hidden'); tip.hidden = true; }
+    function hide() { cross.setAttribute('visibility', 'hidden'); hot.setAttribute('visibility', 'hidden'); hots.forEach((h) => h.setAttribute('visibility', 'hidden')); tip.hidden = true; }
     hit.addEventListener('pointermove', show);
     hit.addEventListener('pointerdown', show);
     hit.addEventListener('pointerleave', hide);
@@ -347,12 +379,21 @@ th { color: var(--ink-soft); }
   }
 
   const S = D.daily;
-  drawChart($('chart'), S.map((s) => s.visits), { tipText: (i) => ` · 예매 클릭 ${fmt(S[i].clicks)}` });
+  // 예매 인원은 예매 폼 누적(중복 의심 제외)에서 하루 증가분으로. 같은 날짜 축이다
+  const booked = F && F.cumulative.length === S.length ? F.cumulative.map((v, i) => v - (i ? F.cumulative[i - 1] : 0)) : null;
+  const series = [{ name: '예매 클릭', cls: 's-click', color: 'var(--click)', values: S.map((s) => s.clicks) }];
+  if (booked) {
+    series.push({ name: '예매', cls: 's-book', color: 'var(--book)', values: booked });
+    $('lg-book').hidden = false;
+    $('th-book').hidden = false;
+  }
+  drawChart($('chart'), S.map((s) => s.visits), { big: true, series, from: '2026-10-27', label: '날짜별 방문·예매 클릭·예매 인원' });
 
   const tb = document.querySelector('#daily-table tbody');
-  S.slice().reverse().forEach((s) => {
+  S.slice().reverse().forEach((s, r) => {
     const tr = el('tr', 'num');
     tr.append(el('td', null, md(s.day)), el('td', null, fmt(s.visits)), el('td', null, fmt(s.clicks)));
+    if (booked) tr.append(el('td', null, fmt(booked[S.length - 1 - r])));
     tb.append(tr);
   });
 })();
