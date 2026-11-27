@@ -155,6 +155,8 @@ th { color: var(--ink-soft); }
     <div class="stat" id="t-form" hidden><span class="label">예매 인원 · 전체 / 중복 의심 제외</span><span class="value rose num" id="s-form"></span><span class="sub num" id="s-form7"></span></div>
     <div class="stat"><span class="label">사이트 방문</span><span class="value num" id="s-visits"></span><span class="sub num" id="s-visits7"></span></div>
     <div class="stat"><span class="label">사전예매하기 클릭</span><span class="value num" id="s-clicks"></span><span class="sub num" id="s-clicks7"></span></div>
+    <div class="stat" id="t-v2c"><span class="label">방문 → 예매 버튼 클릭</span><span class="value num" id="s-v2c"></span><span class="sub num" id="s-v2c7"></span></div>
+    <div class="stat" id="t-c2b" hidden><span class="label">예매 버튼 클릭 → 실제 예매</span><span class="value num" id="s-c2b"></span><span class="sub num" id="s-c2b7"></span></div>
     <div class="stat"><span class="label">티켓 이벤트 응모</span><span class="value num" id="s-submits"></span><span class="sub num" id="s-submits7"></span></div>
   </div>
 
@@ -185,11 +187,18 @@ th { color: var(--ink-soft); }
     <p class="lede">하루 사이트 방문, 사전예매하기 버튼 클릭, 실제 <span id="book-unit">예매 인원</span>(예매 폼, 중복 의심 제외)입니다. 사이트 공개(10/30) 직전부터 그렸고, 그 전 티저 기간은 표에 있습니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
     <div class="legend" id="daily-legend"><span><i style="background:var(--rose)"></i>방문</span><span><i style="background:var(--click)"></i>사전예매하기 클릭</span><span id="lg-book" hidden><i style="background:var(--book)"></i><span id="lg-book-t">예매 인원</span></span></div>
     <div class="chart" id="chart"></div>
-    <p class="lede num" id="conv" hidden></p>
     <details>
       <summary>날짜별 표로 보기</summary>
-      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th><th id="th-book" hidden>예매 인원</th><th id="th-conv" hidden>클릭 대비</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th><th id="th-book" hidden>예매 인원</th><th>방문→클릭</th><th id="th-conv" hidden>클릭→예매</th></tr></thead><tbody></tbody></table></div>
     </details>
+  </section>
+
+  <section id="conv-section">
+    <h2>날짜별 전환율</h2>
+    <p class="lede">방문한 사람 중 사전예매하기를 누른 비율과, 누른 횟수 대비 실제 예매(폼 응답 건수, 중복 의심 제외) 비율입니다. 하루 단위로는 클릭이 한두 번인 날 0%와 200%를 오가서, 각 날짜까지 <b class="w-r">최근 7일 합</b>으로 계산했습니다. 그래프 위를 누르면 그날 하루 숫자도 보입니다.</p>
+    <div class="legend"><span><i style="background:var(--click)"></i>방문 → 예매 버튼 클릭</span><span id="lg-c2b" hidden><i style="background:var(--book)"></i>예매 버튼 클릭 → 실제 예매</span></div>
+    <div class="chart" id="conv-chart"></div>
+    <p class="lede num" id="conv"></p>
   </section>
 
   <section>
@@ -220,7 +229,7 @@ th { color: var(--ink-soft); }
   $('s-visits').textContent = fmt(D.visits);
   $('s-visits7').textContent = `최근 7일 ${fmt(D.visits7)}`;
   $('s-clicks').textContent = fmt(D.clicks);
-  $('s-clicks7').textContent = `최근 7일 ${fmt(D.clicks7)} · 방문의 ${D.visits ? Math.round(D.clicks / D.visits * 100) : 0}%`;
+  $('s-clicks7').textContent = `최근 7일 ${fmt(D.clicks7)}`;
   $('s-submits').textContent = fmt(D.submits);
   $('s-submits7').textContent = `최근 7일 ${fmt(D.submits7)}`;
 
@@ -231,7 +240,9 @@ th { color: var(--ink-soft); }
   // 날짜별 그래프 하나 (전체 방문, 채널별 펼침 모두). values = 날짜별 숫자, tipText(i) = 툴팁 뒤쪽 문구
   // opts.series = [{ name, cls, values }]: 같은 축에 선을 더 겹친다 (첫 번째 이름은 opts.unit). 툴팁에 모두 보인다
   // opts.from = 이 날짜부터 그린다 (앞쪽 빈 기간을 잘라 그래프를 넓게)
+  // opts.vfmt = 숫자 형식(전환율은 %), opts.cls·color = 첫 선의 색(기본 장미), opts.area === false면 면을 칠하지 않고, opts.noPeak면 최고점 표시를 뺀다
   function drawChart(host, values, opts = {}) {
+    const vf = opts.vfmt || fmt, pc = opts.cls ? ` ${opts.cls}` : '';
     const W = Math.max(300, Math.round(host.clientWidth)), small = !!opts.small;
     const off = opts.from ? Math.max(0, allDays.indexOf(opts.from)) : 0;
     const days = allDays.slice(off);
@@ -249,11 +260,11 @@ th { color: var(--ink-soft); }
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', `${opts.label || '날짜별 방문'} 그래프, 가장 큰 값 ${fmt(ymaxRaw)}명`);
+    svg.setAttribute('aria-label', `${opts.label || '날짜별 방문'} 그래프, 가장 큰 값 ${vf(ymaxRaw)}${opts.vfmt ? '' : '명'}`);
     const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
     for (let v = 0; v <= ymax; v += step) {
       add('line', { class: 'grid', x1: L, x2: W - R, y1: y(v), y2: y(v) });
-      add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v));
+      add('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, vf(v));
     }
     // 날짜 눈금: 첫날, 매달 1일, 월요일 (가까운 눈금과 겹치지 않게)
     let last = -1;
@@ -273,17 +284,17 @@ th { color: var(--ink-soft); }
       add('text', { class: 'mark-label', x: mx + (anchor === 'start' ? 4 : -4), y: ly, 'text-anchor': anchor }, m.label);
     });
     const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
-    add('path', { class: extra.length ? 'area multi' : 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(n - 1)},${y(0)} Z` });
-    add('path', { class: 'line', d: `M${pts.join(' L')}` });
+    if (opts.area !== false) add('path', { class: extra.length ? 'area multi' : 'area', d: `M${x(0)},${y(0)} L${pts.join(' L')} L${x(n - 1)},${y(0)} Z` });
+    add('path', { class: 'line' + pc, d: `M${pts.join(' L')}` });
     extra.forEach((e) => add('path', { class: `line ${e.cls}`, d: `M${e.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' L')}` }));
     const peak = values.reduce((a, v, i) => (v > values[a] ? i : a), 0);
-    if (values[peak] > 0) {
+    if (values[peak] > 0 && !opts.noPeak) {
       add('circle', { class: 'dot', cx: x(peak), cy: y(values[peak]), r: 4 });
       const pr = x(peak) > W - 90;
-      add('text', { x: x(peak) + (pr ? -8 : 8), y: y(values[peak]) + 4, 'text-anchor': pr ? 'end' : 'start' }, `${md(days[peak])} ${fmt(values[peak])}`);
+      add('text', { x: x(peak) + (pr ? -8 : 8), y: y(values[peak]) + 4, 'text-anchor': pr ? 'end' : 'start' }, `${md(days[peak])} ${vf(values[peak])}`);
     }
     const cross = add('line', { class: 'cross', y1: T, y2: H - B, visibility: 'hidden' });
-    const hot = add('circle', { class: 'dot', r: 4, visibility: 'hidden' });
+    const hot = add('circle', { class: 'dot' + pc, r: 4, visibility: 'hidden' });
     const hots = extra.map((e) => add('circle', { class: `dot ${e.cls}`, r: 4, visibility: 'hidden' }));
     const hit = add('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' });
     const tip = el('div', 'tip'); tip.hidden = true;
@@ -301,8 +312,8 @@ th { color: var(--ink-soft); }
       if (extra.length) {
         // 한 줄에 날짜, 다음 줄에 색 견본 + 이름 + 숫자
         const line = el('div');
-        [{ name: opts.unit || '방문', color: 'var(--rose)', v: values[i] }, ...extra.map((e) => ({ name: e.name, color: e.color, v: e.values[i] }))]
-          .forEach((o) => { const sw = el('i', 'sw'); sw.style.background = o.color; line.append(sw, `${o.name} `, el('b', null, fmt(o.v))); });
+        [{ name: opts.unit || '방문', color: opts.color || 'var(--rose)', v: values[i] }, ...extra.map((e) => ({ name: e.name, color: e.color, v: e.values[i] }))]
+          .forEach((o) => { const sw = el('i', 'sw'); sw.style.background = o.color; line.append(sw, `${o.name} `, el('b', null, vf(o.v))); });
         tip.append(el('div', null, md(days[i])), line);
         if (opts.tipExtra) tip.append(el('div', null, opts.tipExtra(i + off)));
       } else {
@@ -395,18 +406,36 @@ th { color: var(--ink-soft); }
     $('th-book').textContent = unit;
     $('lg-book').hidden = false;
     $('th-book').hidden = false;
-    if (byCount) {
-      // 전환율: 예매 건수 ÷ 사전예매하기 클릭. 클릭은 광고 차단이 빠진 최소값이고, 폼 링크를 바로 받은 예매도 있어 100%를 넘는 날도 있다
-      const tc = S.reduce((n, s) => n + s.clicks, 0), tb = booked.reduce((n, v) => n + v, 0);
-      const w = S.length - 7;
-      const wc = S.slice(w).reduce((n, s) => n + s.clicks, 0), wb = booked.slice(w).reduce((n, v) => n + v, 0);
-      $('conv').textContent = `클릭 대비 예매: 지금까지 ${fmt(tc)}번 클릭에 ${fmt(tb)}건 (${pct(tb, tc)}) · 최근 7일 ${fmt(wc)}번에 ${fmt(wb)}건 (${pct(wb, wc)}). 클릭은 광고 차단이 빠진 최소값이고 예매 폼 링크를 바로 받은 사람도 있어서, 하루 단위로는 100%를 넘기도 합니다.`;
-      $('conv').hidden = false;
-      $('th-conv').hidden = false;
-    }
   }
   drawChart($('chart'), S.map((s) => s.visits), { big: true, series, from: '2026-10-27', label: '날짜별 방문·예매 클릭·예매',
-    tipExtra: byCount ? (i) => `클릭 대비 예매 ${pct(booked[i], S[i].clicks)}` : null });
+    tipExtra: (i) => `방문→클릭 ${pct(S[i].clicks, S[i].visits)}` + (byCount ? ` · 클릭→예매 ${pct(booked[i], S[i].clicks)}` : '') });
+
+  // ── 전환율. 버튼이 생긴 사이트 공개일부터 센다 (그 전 티저 방문은 누를 버튼이 없었다)
+  // 클릭은 광고 차단이 빠진 최소값이고 폼 링크를 바로 받은 예매도 있어, 클릭→예매는 100%를 넘을 수 있다
+  const OPEN = '2026-10-30';
+  const o = Math.max(0, allDays.indexOf(OPEN));
+  const sum = (a, from, to) => a.slice(from, to).reduce((n, v) => n + v, 0);
+  const vis = S.map((s) => s.visits), clk = S.map((s) => s.clicks);
+  const w7 = Math.max(o, S.length - 7);
+  const rate = (a, b, from, to) => { const d = sum(b, from, to); return d ? sum(a, from, to) / d * 100 : 0; };
+  $('s-v2c').textContent = pct(sum(clk, o), sum(vis, o));
+  $('s-v2c7').textContent = `최근 7일 ${pct(sum(clk, w7), sum(vis, w7))} · 공개(10/30) 이후 방문 ${fmt(sum(vis, o))} 중 클릭 ${fmt(sum(clk, o))}`;
+  const roll = (a, b) => S.map((_, i) => rate(a, b, Math.max(o, i - 6), i + 1));
+  const convSeries = [];
+  let convText = `방문 → 예매 버튼 클릭: 지금까지 ${pct(sum(clk, o), sum(vis, o))}, 최근 7일 ${pct(sum(clk, w7), sum(vis, w7))}.`;
+  if (byCount) {
+    $('t-c2b').hidden = false;
+    $('lg-c2b').hidden = false;
+    $('th-conv').hidden = false;
+    $('s-c2b').textContent = pct(sum(booked, o), sum(clk, o));
+    $('s-c2b7').textContent = `최근 7일 ${pct(sum(booked, w7), sum(clk, w7))} · 클릭 ${fmt(sum(clk, o))}번에 예매 ${fmt(sum(booked, o))}건`;
+    convSeries.push({ name: '클릭→예매', cls: 's-book', color: 'var(--book)', values: roll(booked, clk) });
+    convText += ` 예매 버튼 클릭 → 실제 예매: 지금까지 ${pct(sum(booked, o), sum(clk, o))}, 최근 7일 ${pct(sum(booked, w7), sum(clk, w7))}. 클릭은 광고 차단이 빠진 최소값이고 예매 폼 링크를 바로 받은 사람도 있어서 실제보다 높게 나옵니다.`;
+  }
+  $('conv').textContent = convText;
+  drawChart($('conv-chart'), roll(clk, vis), { from: OPEN, unit: '방문→클릭', cls: 's-click', color: 'var(--click)', area: false, noPeak: true,
+    series: convSeries, vfmt: (v) => `${Math.round(v)}%`, label: '날짜별 전환율 (최근 7일 합)',
+    tipExtra: (i) => `그날 하루: 방문 ${fmt(S[i].visits)} → 클릭 ${fmt(S[i].clicks)}` + (byCount ? ` → 예매 ${fmt(booked[i])}건` : '') });
 
   const tbody = document.querySelector('#daily-table tbody');
   S.slice().reverse().forEach((s, r) => {
@@ -414,6 +443,7 @@ th { color: var(--ink-soft); }
     tr.append(el('td', null, md(s.day)), el('td', null, fmt(s.visits)), el('td', null, fmt(s.clicks)));
     const b = booked && booked[S.length - 1 - r];
     if (booked) tr.append(el('td', null, fmt(b)));
+    tr.append(el('td', null, pct(s.clicks, s.visits)));
     if (byCount) tr.append(el('td', null, pct(b, s.clicks)));
     tbody.append(tr);
   });
