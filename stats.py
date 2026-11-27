@@ -269,7 +269,9 @@ def booking_form(days, start7):
     return {"people": b["people"], "people_dedup": b["people_dedup"],
             "responses": b["responses"], "responses_dedup": b["responses_dedup"],
             "last7": sum(v for k, v in b["daily"].items() if k >= start7),
-            "cumulative": cum, "sources": sources, "updated": b.get("updated"), "last_day": b.get("last_day")}
+            "cumulative": cum, "sources": sources,
+            # 날짜별 응답 건수 (중복 의심 제외). 웹앱이 옛 버전이면 없다 → 페이지는 인원으로 그린다
+            "daily_responses": [b["daily_responses"].get(d, 0) for d in days] if "daily_responses" in b else None, "updated": b.get("updated"), "last_day": b.get("last_day")}
 
 
 def subset_woff2(name: str, text: str) -> bytes:

@@ -182,12 +182,13 @@ th { color: var(--ink-soft); }
 
   <section>
     <h2>날짜별 방문 · 예매 클릭 · 예매</h2>
-    <p class="lede">하루 사이트 방문, 사전예매하기 버튼 클릭, 실제 예매 인원(예매 폼, 중복 의심 제외)입니다. 사이트 공개(10/30) 직전부터 그렸고, 그 전 티저 기간은 표에 있습니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
-    <div class="legend" id="daily-legend"><span><i style="background:var(--rose)"></i>방문</span><span><i style="background:var(--click)"></i>사전예매하기 클릭</span><span id="lg-book" hidden><i style="background:var(--book)"></i>예매 인원</span></div>
+    <p class="lede">하루 사이트 방문, 사전예매하기 버튼 클릭, 실제 <span id="book-unit">예매 인원</span>(예매 폼, 중복 의심 제외)입니다. 사이트 공개(10/30) 직전부터 그렸고, 그 전 티저 기간은 표에 있습니다. 점선은 홍보 일정입니다. 그래프 위를 누르거나 가리키면 그날 숫자가 보입니다.</p>
+    <div class="legend" id="daily-legend"><span><i style="background:var(--rose)"></i>방문</span><span><i style="background:var(--click)"></i>사전예매하기 클릭</span><span id="lg-book" hidden><i style="background:var(--book)"></i><span id="lg-book-t">예매 인원</span></span></div>
     <div class="chart" id="chart"></div>
+    <p class="lede num" id="conv" hidden></p>
     <details>
       <summary>날짜별 표로 보기</summary>
-      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th><th id="th-book" hidden>예매 인원</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="daily-table"><thead><tr><th>날짜</th><th>방문</th><th>예매 클릭</th><th id="th-book" hidden>예매 인원</th><th id="th-conv" hidden>클릭 대비</th></tr></thead><tbody></tbody></table></div>
     </details>
   </section>
 
@@ -303,6 +304,7 @@ th { color: var(--ink-soft); }
         [{ name: opts.unit || '방문', color: 'var(--rose)', v: values[i] }, ...extra.map((e) => ({ name: e.name, color: e.color, v: e.values[i] }))]
           .forEach((o) => { const sw = el('i', 'sw'); sw.style.background = o.color; line.append(sw, `${o.name} `, el('b', null, fmt(o.v))); });
         tip.append(el('div', null, md(days[i])), line);
+        if (opts.tipExtra) tip.append(el('div', null, opts.tipExtra(i + off)));
       } else {
         tip.append(`${md(days[i])} · ${opts.unit || '방문'} `, el('b', null, fmt(values[i])), opts.tipText ? opts.tipText(i) : '');
       }
@@ -379,22 +381,41 @@ th { color: var(--ink-soft); }
   }
 
   const S = D.daily;
-  // 예매 인원은 예매 폼 누적(중복 의심 제외)에서 하루 증가분으로. 같은 날짜 축이다
-  const booked = F && F.cumulative.length === S.length ? F.cumulative.map((v, i) => v - (i ? F.cumulative[i - 1] : 0)) : null;
+  // 예매: 웹앱이 날짜별 응답 건수를 주면 건수(클릭과 견줄 수 있게), 아니면 누적 인원의 하루 증가분. 둘 다 중복 의심 제외, 같은 날짜 축
+  const byCount = !!(F && F.daily_responses && F.daily_responses.length === S.length);
+  const booked = byCount ? F.daily_responses
+    : F && F.cumulative.length === S.length ? F.cumulative.map((v, i) => v - (i ? F.cumulative[i - 1] : 0)) : null;
+  const pct = (a, b) => (b ? `${Math.round(a / b * 100)}%` : '–');
   const series = [{ name: '예매 클릭', cls: 's-click', color: 'var(--click)', values: S.map((s) => s.clicks) }];
   if (booked) {
-    series.push({ name: '예매', cls: 's-book', color: 'var(--book)', values: booked });
+    const unit = byCount ? '예매 건수' : '예매 인원';
+    series.push({ name: byCount ? '예매 건수' : '예매', cls: 's-book', color: 'var(--book)', values: booked });
+    $('book-unit').textContent = byCount ? '예매 건수' : '예매 인원';
+    $('lg-book-t').textContent = unit;
+    $('th-book').textContent = unit;
     $('lg-book').hidden = false;
     $('th-book').hidden = false;
+    if (byCount) {
+      // 전환율: 예매 건수 ÷ 사전예매하기 클릭. 클릭은 광고 차단이 빠진 최소값이고, 폼 링크를 바로 받은 예매도 있어 100%를 넘는 날도 있다
+      const tc = S.reduce((n, s) => n + s.clicks, 0), tb = booked.reduce((n, v) => n + v, 0);
+      const w = S.length - 7;
+      const wc = S.slice(w).reduce((n, s) => n + s.clicks, 0), wb = booked.slice(w).reduce((n, v) => n + v, 0);
+      $('conv').textContent = `클릭 대비 예매: 지금까지 ${fmt(tc)}번 클릭에 ${fmt(tb)}건 (${pct(tb, tc)}) · 최근 7일 ${fmt(wc)}번에 ${fmt(wb)}건 (${pct(wb, wc)}). 클릭은 광고 차단이 빠진 최소값이고 예매 폼 링크를 바로 받은 사람도 있어서, 하루 단위로는 100%를 넘기도 합니다.`;
+      $('conv').hidden = false;
+      $('th-conv').hidden = false;
+    }
   }
-  drawChart($('chart'), S.map((s) => s.visits), { big: true, series, from: '2026-10-27', label: '날짜별 방문·예매 클릭·예매 인원' });
+  drawChart($('chart'), S.map((s) => s.visits), { big: true, series, from: '2026-10-27', label: '날짜별 방문·예매 클릭·예매',
+    tipExtra: byCount ? (i) => `클릭 대비 예매 ${pct(booked[i], S[i].clicks)}` : null });
 
-  const tb = document.querySelector('#daily-table tbody');
+  const tbody = document.querySelector('#daily-table tbody');
   S.slice().reverse().forEach((s, r) => {
     const tr = el('tr', 'num');
     tr.append(el('td', null, md(s.day)), el('td', null, fmt(s.visits)), el('td', null, fmt(s.clicks)));
-    if (booked) tr.append(el('td', null, fmt(booked[S.length - 1 - r])));
-    tb.append(tr);
+    const b = booked && booked[S.length - 1 - r];
+    if (booked) tr.append(el('td', null, fmt(b)));
+    if (byCount) tr.append(el('td', null, pct(b, s.clicks)));
+    tbody.append(tr);
   });
 })();
 </script>
